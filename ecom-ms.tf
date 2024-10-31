@@ -131,3 +131,113 @@ resource "kubernetes_ingress" "product-catalog" {
 # 11. Scalability (Define Horizontal Pod Autoscaler configuration)
 
 # 12. High Availability (
+
+# Configure the Blue-Green Deployment Strategy
+
+# Define the Blue and Green Deployments
+resource "kubernetes_deployment" "blue" {
+  metadata {
+    name = "my-app-blue"
+  }
+  spec {
+    replicas = 5
+    selector {
+      match_labels = {
+        app = "my-app"
+        version = "blue"
+      }
+    }
+    template {
+      metadata {
+        labels = {
+          app = "my-app"
+          version = "blue"
+        }
+      }
+      spec {
+        containers = [{
+          name  = "my-app"
+          image = "my-app-image:blue"
+          # ... other container configurations
+        }]
+      }
+    }
+  }
+}
+
+resource "kubernetes_deployment" "green" {
+  metadata {
+    name = "my-app-green"
+  }
+  spec {
+    replicas = 0  # Initially, no replicas for the green deployment
+    selector {
+      match_labels = {
+        app = "my-app"
+        version = "green"
+      }
+    }
+    template {
+      metadata {
+        labels = {
+          app = "my-app"
+          version = "green"
+        }
+      }
+      spec {
+        containers = [{
+          name  = "my-app"
+          image = "my-app-image:green"
+          # ... other container configurations
+        }]
+      }
+    }
+  }
+}
+
+# Use a Service to expose the deployment
+resource "kubernetes_service" "my-app" {
+  metadata {
+    name = "my-app"
+  }
+  spec {
+    selector = {
+      app = "my-app"
+    }
+    port {
+      port     = 80
+      target_port = 8080
+      protocol = "TCP"
+    }
+  }
+}
+
+# Use a Kubernetes Ingress to route traffic
+resource "kubernetes_ingress" "my-app-ingress" {
+  metadata {
+    name = "my-app-ingress"
+    annotations = {
+      "nginx.ingress.kubernetes.io/rewrite-target" = "/"
+    }
+  }
+  spec {
+    rules = [{
+      http = {
+        paths = [{
+          path     = "/"
+          pathType = "Prefix"
+          backend = {
+            service {
+              name = "my-app"
+              port = kubernetes_service.my-app.spec.0.port[0]
+            }
+          }
+        }]
+      }
+    }]
+  }
+  depends_on = [kubernetes_service.my-app, helm_release.ingress-nginx]
+}
+
+# Implement a Canary Deployment Strategy (Optional)
+# ...
